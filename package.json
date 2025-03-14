@@ -23,5 +23,8 @@
   },
   "devDependencies": {
     "@element-plus/nuxt": "^1.1.1"
+  },
+  "resolutions": {
+    "unenv": "^1.7.0"
   }
 }
