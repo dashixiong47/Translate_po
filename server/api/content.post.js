@@ -1,4 +1,3 @@
-import Gettext from 'node-gettext';
 import { po } from 'gettext-parser';
 
 export default defineEventHandler(async (event) => {
