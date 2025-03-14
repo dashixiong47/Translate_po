@@ -6,11 +6,9 @@ type = "javascript"
 command = "npm run build"
 upload.format = "modules"
 
-[site]
-bucket = ".output/public"
-
 [vars]
 NODE_VERSION = "20.13.1"
+NITRO_PRESET = "cloudflare"
 
 [dev]
 main = ".output/server/index.mjs"  # 设置 Nuxt 入口文件
