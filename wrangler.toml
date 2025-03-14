@@ -1,2 +1,17 @@
+
+name = "translate_po"
+type = "javascript"
+
 [build]
+command = "npm run build"
+upload.format = "modules"
 node_version = "20.13.1"
+
+[site]
+bucket = ".output/public"
+
+[vars]
+NODE_VERSION = "18.19.0"
+
+[dev]
+main = ".output/server/index.mjs"  # 设置 Nuxt 入口文件
