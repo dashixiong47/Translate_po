@@ -1,5 +1,5 @@
 
-name = "translate_po"
+name = "translate"
 type = "javascript"
 
 [build]
