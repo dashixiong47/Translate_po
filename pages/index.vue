@@ -37,12 +37,14 @@
           <el-button
             :disabled="autoTranslating || !tableData.length"
             @click="autoTranslation"
+            :loading="autoTranslating"
             type="success"
           >
             一键自动翻译
           </el-button>
           <el-button
             :disabled="!select.length || selectTranslating"
+            :loading="selectTranslating"
             @click="
               () => {
                 selectTranslating = true;
@@ -80,12 +82,16 @@
           :table-data="tableData"
           :rowSelection="{ onChange: OnSelect }"
         >
+          <template #msgid="{ row, $index }">
+            <pre>{{ row.msgid }}</pre>
+          </template>
           <template #msgstr="{ row, $index }">
             <el-input
               type="textarea"
+              autosize
               @input="
                 (value) => {
-                  markChange(value, row);
+                  statusChange(value, row);
                 }
               "
               :model-value="
@@ -97,7 +103,7 @@
               placeholder="请输入翻译后的内容"
             ></el-input>
           </template>
-          <template #mark="{ row }">
+          <template #status="{ row }">
             <el-tag :type="getState(row.context).type" size="mini">
               {{ getState(row.context).text }}
             </el-tag>
@@ -190,6 +196,7 @@
 <script setup>
 import { ref } from "vue";
 import { Upload, UploadFilled, Download } from "@element-plus/icons-vue";
+import { ElNotification } from 'element-plus'
 const fileList = ref([]);
 const changeMsgstr = ref({});
 const select = ref([]);
@@ -197,6 +204,7 @@ const columns = ref([
   {
     prop: "msgid",
     label: "原文",
+    slot: "msgid",
   },
   {
     prop: "msgstr",
@@ -204,9 +212,9 @@ const columns = ref([
     slot: "msgstr",
   },
   {
-    prop: "mark",
-    label: "是否修改",
-    slot: "mark",
+    prop: "status",
+    label: "状态",
+    slot: "status",
     width: 100,
   },
   {
@@ -324,7 +332,7 @@ const removeTab = (item) => {
     tableData.value = [];
   }
 };
-const markChange = (value, row) => {
+const statusChange = (value, row) => {
   if (!changeMsgstr.value[tabsValue.value]) {
     changeMsgstr.value[tabsValue.value] = {};
   }
@@ -334,8 +342,15 @@ const markChange = (value, row) => {
     changeMsgstr.value[tabsValue.value][row.context] = value;
   }
 };
-
 const translation = async (row) => {
+  if(settings.value.apiKey === ""){
+    ElNotification({
+      title: '提示',
+      message: '请先设置API Key',
+      type: 'warning'
+    });
+    return;
+  }
   let isArray = Array.isArray(row);
   let rows = isArray ? row : [row]; // 统一转换为数组处理
 
@@ -395,7 +410,9 @@ const translation = async (row) => {
         text: outputs,
       },
     });
-
+    if(code===500){
+      throw new Error("翻译失败");
+    }
     // 遍历翻译结果，将占位符替换回原始内容
     const restoredTranslations = message.map((translatedText, i) => {
       let restoredText = translatedText;
@@ -429,11 +446,9 @@ const translation = async (row) => {
 
     selectTranslating.value = false;
   } catch (error) {
-    keys.forEach((item, index) => {
-      cacheKeys[item].forEach((context) => {
-        failTranslating.value[context] = true;
-        translating.value[context] = true;
-      });
+    rows.forEach((item) => {
+      translating.value[item.context] = false;
+      failTranslating.value[item.context] = true;
     });
     throw error;
   }
