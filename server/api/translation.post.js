@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
         const completion = await openai.chat.completions.create({
             model: model,
             messages: [
-                { role: 'system', content: `You are a translation robot, translate the contents of the json array into ${targetLanguage}` },
+                { role: 'system', content: `You are a translation robot, translate the contents of the json array into ${targetLanguage},return json;` },
                 { role: 'user', content: `["Hello, '{{0}}'!","你好"]` },
                 { role: 'assistant', content: `["你好,'{{0}}'!","Hello"]` },
                 { role: 'user', content: JSON.stringify(text) },
