@@ -13,6 +13,7 @@
       </template>
       <template #default>
         <div class="w-full flex items-center justify-end pb-[20px]">
+          <el-button class="mr-[10px]" type="danger" @click="reset"><el-icon><Refresh /></el-icon> 还原 </el-button>
           <el-input
             v-model="targetLanguage"
             class="mr-[10px]"
@@ -195,7 +196,7 @@
 
 <script setup>
 import { ref } from "vue";
-import { Upload, UploadFilled, Download } from "@element-plus/icons-vue";
+import { Upload, UploadFilled, Download,Refresh } from "@element-plus/icons-vue";
 import { ElNotification } from 'element-plus'
 const fileList = ref([]);
 const changeMsgstr = ref({});
@@ -299,6 +300,13 @@ onMounted(() => {
     settings.value = JSON.parse(settingsStr);
   }
 });
+const reset=()=>{
+  cache={}
+  changeMsgstr.value={}
+  failTranslating.value={}
+  selectTranslating.value=false
+  autoTranslating.value=false
+}
 const saveSetting = () => {
   settingVisible.value = false;
   localStorage.setItem("settings", JSON.stringify(settings.value));
@@ -449,6 +457,7 @@ const translation = async (row) => {
     rows.forEach((item) => {
       translating.value[item.context] = false;
       failTranslating.value[item.context] = true;
+      delete changeMsgstr.value[item.context]
     });
     throw error;
   }
