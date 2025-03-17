@@ -384,6 +384,9 @@ const translation = async (row) => {
         }
         changeMsgstr.value[tabsValue.value][context] = cache[item];
         translating.value[context] = false;
+        if(failTranslating.value[context]){
+          delete failTranslating.value[context]
+        }
       });
       cacheKeys[item] = null;
       delete cacheKeys[item];
@@ -476,6 +479,7 @@ const autoTranslation = async () => {
     ) {
       continue;
     }
+    
     if (currentSize + row.msgid.length < size.value) {
       rows.push(row);
       currentSize += row.msgid.length;
