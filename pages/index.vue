@@ -6,6 +6,7 @@
           <el-button @click="dialogVisible = true">
             导入PO文件<el-icon class="el-icon--right"><Upload /></el-icon>
           </el-button>
+          <div>服务器在国外访问DeepSeek可能会失败可以多试几次 "一键自动翻译"</div>
           <el-button @click="settingVisible = true" type="primary">
             设置
           </el-button>
@@ -418,7 +419,7 @@ const translation = async (row) => {
         text: outputs,
       },
     });
-    if(code===500){
+    if(code!==200){
       throw new Error("翻译失败");
     }
     // 遍历翻译结果，将占位符替换回原始内容
