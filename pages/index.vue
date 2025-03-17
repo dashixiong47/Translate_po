@@ -472,7 +472,7 @@ const autoTranslation = async () => {
     const row = tableData.value[index];
     if (
       changeMsgstr.value[tabsValue.value] &&
-      changeMsgstr.value[tabsValue.value][row.context]
+      changeMsgstr.value[tabsValue.value][row.context]&&!failTranslating.value[row.context]
     ) {
       continue;
     }
