@@ -384,9 +384,6 @@ const translation = async (row) => {
         }
         changeMsgstr.value[tabsValue.value][context] = cache[item];
         translating.value[context] = false;
-        if(failTranslating.value[context]){
-          delete failTranslating.value[context]
-        }
       });
       cacheKeys[item] = null;
       delete cacheKeys[item];
@@ -471,11 +468,12 @@ const autoTranslation = async () => {
   autoTranslating.value = true; // 开始加载
   let currentSize = 0;
   let rows = [];
+  failTranslating.value = {};
   for (let index = 0; index < tableData.value.length; index++) {
     const row = tableData.value[index];
     if (
       changeMsgstr.value[tabsValue.value] &&
-      changeMsgstr.value[tabsValue.value][row.context]&&!failTranslating.value[row.context]
+      changeMsgstr.value[tabsValue.value][row.context]
     ) {
       continue;
     }
