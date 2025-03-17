@@ -469,6 +469,7 @@ const autoTranslation = async () => {
   let currentSize = 0;
   let rows = [];
   failTranslating.value = {};
+  console.log(changeMsgstr.value);
   for (let index = 0; index < tableData.value.length; index++) {
     const row = tableData.value[index];
     if (
