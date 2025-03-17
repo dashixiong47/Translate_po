@@ -470,6 +470,7 @@ const autoTranslation = async () => {
   let rows = [];
   failTranslating.value = {};
   console.log(changeMsgstr.value);
+
   for (let index = 0; index < tableData.value.length; index++) {
     const row = tableData.value[index];
     if (
@@ -482,26 +483,30 @@ const autoTranslation = async () => {
     if (currentSize + row.msgid.length < size.value) {
       rows.push(row);
       currentSize += row.msgid.length;
-      console.log(index, tableData.value.length - 1);
-      if (index === tableData.value.length - 1) {
-        if (isSync.value) {
-          await translation(rows);
-        } else {
-          translation(rows);
-        }
-      }
     } else {
+      // 每次达到 size.value 时执行翻译
       if (isSync.value) {
         await translation(rows);
       } else {
         translation(rows);
       }
-      rows = [row];
+      rows = [row]; // 重新开始一批
       currentSize = row.msgid.length;
     }
   }
+
+  // 如果最后一批数据不足 size.value，也强制执行翻译
+  if (rows.length > 0) {
+    if (isSync.value) {
+      await translation(rows);
+    } else {
+      translation(rows);
+    }
+  }
+
   autoTranslating.value = false; // 结束加载
 };
+
 const OnSelect = (selection) => {
   select.value = selection;
 };
