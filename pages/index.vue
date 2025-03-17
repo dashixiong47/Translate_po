@@ -482,6 +482,7 @@ const autoTranslation = async () => {
     if (currentSize + row.msgid.length < size.value) {
       rows.push(row);
       currentSize += row.msgid.length;
+      console.log(index, tableData.value.length - 1);
       if (index === tableData.value.length - 1) {
         if (isSync.value) {
           await translation(rows);
