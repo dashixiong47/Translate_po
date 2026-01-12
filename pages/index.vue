@@ -1,6 +1,6 @@
 <template>
   <div class="h-screen p-4">
-    <el-card style="width: 100%; height: 100%" :body-style="{ height: '89%' }">
+    <el-card class="translation-card">
       <template #header>
         <div class="flex items-center justify-between">
           <el-button 
@@ -23,226 +23,279 @@
         </div>
       </template>
       <template #default>
-        <div class="w-full flex items-center justify-end pb-[20px] flex-wrap gap-2">
-          <el-button 
-            class="mr-[10px]" 
-            type="danger" 
-            @click="reset"
-            v-tooltip="'清除所有翻译结果和缓存'"
-          >
-            <el-icon><Refresh /></el-icon> 还原
-          </el-button>
-          
-          <!-- 语言选择下拉框 -->
-          <el-select
-            v-model="targetLanguage"
-            class="mr-[10px]"
-            @change="clearCache"
-            style="width: 150px"
-            placeholder="选择目标语言"
-            filterable
-            v-tooltip="'选择要翻译到的目标语言'"
-          >
-            <el-option
-              v-for="item in commonLanguages"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
+        <div class="card-content">
+          <div class="toolbar">
+            <el-button 
+              class="mr-[10px]" 
+              type="danger" 
+              @click="reset"
+              v-tooltip="'清除所有翻译结果和缓存'"
             >
-              <span>{{ item.flag }} {{ item.label }}</span>
-            </el-option>
-          </el-select>
-
-          <!-- 批量大小控制 -->
-          <el-input-number
-            v-model="size"
-            :min="100"
-            :max="5000"
-            :step="100"
-            class="mr-[10px]"
-            v-tooltip="'每次翻译的字符数限制,影响API调用频率'"
-          />
-
-          <el-switch
-            class="mr-[10px]"
-            v-model="isSync"
-            size="large"
-            inline-prompt
-            active-text="同步"
-            inactive-text="异步"
-            v-tooltip="'同步模式会等待每批翻译完成后再继续,异步模式会同时发起多个翻译请求'"
-          />
-          
-          <el-button
-            :disabled="autoTranslating || !tableData.length"
-            @click="autoTranslation(false)"
-            :loading="autoTranslating"
-            type="success"
-            v-tooltip="'自动翻译所有未翻译的项,已翻译的项会被跳过'"
-          >
-            <el-icon v-if="!autoTranslating"><Promotion /></el-icon>
-            {{ autoTranslating ? '翻译中...' : '一键自动翻译' }}
-          </el-button>
-          
-          <!-- 重新全部翻译按钮 -->
-          <el-button
-            :disabled="autoTranslating || !tableData.length"
-            @click="autoTranslation(true)"
-            :loading="autoTranslating"
-            type="warning"
-            v-tooltip="'清除所有已有翻译,从头开始重新翻译全部内容'"
-          >
-            <el-icon v-if="!autoTranslating"><RefreshRight /></el-icon>
-            {{ autoTranslating ? '翻译中...' : '重新全部翻译' }}
-          </el-button>
-          
-          <!-- 重新翻译失败项按钮 -->
-          <el-button
-            v-if="failedCount > 0"
-            :disabled="autoTranslating"
-            @click="retryFailedTranslations"
-            :loading="retryingFailed"
-            type="danger"
-            v-tooltip="`重新翻译之前失败的 ${failedCount} 项内容`"
-          >
-            <el-icon v-if="!retryingFailed"><Warning /></el-icon>
-            重试失败项 ({{ failedCount }})
-          </el-button>
-
-          <el-button
-            :disabled="!select.length || selectTranslating"
-            :loading="selectTranslating"
-            @click="translateSelected"
-            type="primary"
-            v-tooltip="select.length ? `翻译选中的 ${select.length} 项` : '请先在表格中选择要翻译的项'"
-          >
-            <el-icon v-if="!selectTranslating"><Select /></el-icon>
-            翻译选中项 {{ select.length ? `(${select.length})` : '' }}
-          </el-button>
-          
-          <el-button 
-            @click="exportPo" 
-            type="success"
-            :disabled="!translatedCount"
-            v-tooltip="translatedCount ? `导出当前页面的 ${translatedCount} 条翻译结果` : '当前页面没有可导出的翻译内容'"
-          >
-            导出翻译<el-icon class="el-icon--right"><Download /></el-icon>
-          </el-button>
-        </div>
-
-        <!-- 翻译统计信息 -->
-        <div v-if="tableData.length" class="mb-4 flex items-center gap-4 text-sm">
-          <el-statistic 
-            title="总数" 
-            :value="tableData.length"
-            v-tooltip="'当前页面的总条目数'"
-          />
-          <el-statistic 
-            title="已翻译" 
-            :value="translatedCount" 
-            :value-style="{ color: '#67C23A' }"
-            v-tooltip="'已成功翻译的条目数'"
-          />
-          <el-statistic 
-            title="未翻译" 
-            :value="untranslatedCount" 
-            :value-style="{ color: '#E6A23C' }"
-            v-tooltip="'还未开始翻译的条目数'"
-          />
-          <el-statistic 
-            title="失败" 
-            :value="failedCount" 
-            :value-style="{ color: '#F56C6C' }"
-            v-tooltip="'翻译失败的条目数,可以点击重试'"
-          />
-          <el-statistic 
-            title="翻译中" 
-            :value="translatingCount" 
-            :value-style="{ color: '#409EFF' }"
-            v-tooltip="'正在进行翻译的条目数'"
-          />
-        </div>
-
-        <!-- 翻译进度提示 -->
-        <div v-if="translationProgress.total > 0" class="mb-4">
-          <el-progress 
-            :percentage="translationProgress.percentage" 
-            :status="translationProgress.status"
-            v-tooltip="`翻译进度: ${translationProgress.translated}/${translationProgress.total}`"
-          >
-            <span class="text-sm">
-              {{ translationProgress.translated }} / {{ translationProgress.total }}
-              <span v-if="translationProgress.failed > 0" class="text-red-500">
-                (失败: {{ translationProgress.failed }})
-              </span>
-            </span>
-          </el-progress>
-        </div>
-
-        <el-tabs
-          v-if="allTranslations.length"
-          @tab-click="changeTab"
-          v-model="tabsValue"
-          type="card"
-          closable
-          @tab-remove="removeTab"
-        >
-          <el-tab-pane
-            v-for="item in allTranslations"
-            :key="item.fileName"
-            :label="item.fileName"
-            :name="item.fileName"
-          >
-          </el-tab-pane>
-        </el-tabs>
-        <Table
-          height="88%"
-          :columns="columns"
-          :table-data="tableData"
-          :rowSelection="{ onChange: OnSelect }"
-        >
-          <template #msgid="{ row, $index }">
-            <pre 
-              class="whitespace-pre-wrap break-words"
-              v-tooltip="'原文内容'"
-            >{{ row.msgid }}</pre>
-          </template>
-          <template #msgstr="{ row, $index }">
-            <el-input
-              type="textarea"
-              :autosize="{ minRows: 1, maxRows: 10 }"
-              @input="(value) => statusChange(value, row)"
-              :model-value="
-                changeMsgstr[tabsValue] &&
-                changeMsgstr[tabsValue].hasOwnProperty(row.context)
-                  ? changeMsgstr[tabsValue][row.context]
-                  : row.msgstr
-              "
-              placeholder="请输入翻译后的内容"
-              v-tooltip="'翻译后的内容,可以手动编辑修改'"
-            ></el-input>
-          </template>
-          <template #status="{ row }">
-            <el-tag 
-              :type="getState(row.context).type" 
-              size="small"
-              v-tooltip="getStateTooltip(row.context)"
-            >
-              {{ getState(row.context).text }}
-            </el-tag>
-          </template>
-          <template #action="{ row, $index }">
-            <el-button
-              :loading="translating[row.context]"
-              @click="translation(row)"
-              type="primary"
-              size="small"
-              v-tooltip="translating[row.context] ? '翻译进行中,请稍候...' : '点击翻译此条目'"
-            >
-              {{ translating[row.context] ? '翻译中...' : '翻译' }}
+              <el-icon><Refresh /></el-icon> 还原
             </el-button>
-          </template>
-        </Table>
+            
+            <!-- 语言选择下拉框 -->
+            <el-select
+              v-model="targetLanguage"
+              class="mr-[10px]"
+              @change="clearCache"
+              style="width: 150px"
+              placeholder="选择目标语言"
+              filterable
+              v-tooltip="'选择要翻译到的目标语言'"
+            >
+              <el-option
+                v-for="item in commonLanguages"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              >
+                <span>{{ item.flag }} {{ item.label }}</span>
+              </el-option>
+            </el-select>
+
+            <!-- 批量大小控制 -->
+            <el-input-number
+              v-model="size"
+              :min="100"
+              :max="5000"
+              :step="100"
+              class="mr-[10px]"
+              v-tooltip="'每次翻译的字符数限制,影响API调用频率'"
+            />
+
+            <el-switch
+              class="mr-[10px]"
+              v-model="isSync"
+              size="large"
+              inline-prompt
+              active-text="同步"
+              inactive-text="异步"
+              v-tooltip="'同步模式会等待每批翻译完成后再继续,异步模式会同时发起多个翻译请求'"
+            />
+            
+            <el-button
+              :disabled="autoTranslating || !tableData.length"
+              @click="autoTranslation(false)"
+              :loading="autoTranslating"
+              type="success"
+              v-tooltip="'自动翻译所有未翻译的项,已翻译的项会被跳过'"
+            >
+              <el-icon v-if="!autoTranslating"><Promotion /></el-icon>
+              {{ autoTranslating ? '翻译中...' : '一键自动翻译' }}
+            </el-button>
+            
+            <!-- 重新全部翻译按钮 -->
+            <el-button
+              :disabled="autoTranslating || !tableData.length"
+              @click="autoTranslation(true)"
+              :loading="autoTranslating"
+              type="warning"
+              v-tooltip="'清除所有已有翻译,从头开始重新翻译全部内容'"
+            >
+              <el-icon v-if="!autoTranslating"><RefreshRight /></el-icon>
+              {{ autoTranslating ? '翻译中...' : '重新全部翻译' }}
+            </el-button>
+            
+            <!-- 重新翻译失败项按钮 -->
+            <el-button
+              v-if="failedCount > 0"
+              :disabled="autoTranslating"
+              @click="retryFailedTranslations"
+              :loading="retryingFailed"
+              type="danger"
+              v-tooltip="`重新翻译之前失败的 ${failedCount} 项内容`"
+            >
+              <el-icon v-if="!retryingFailed"><Warning /></el-icon>
+              重试失败项 ({{ failedCount }})
+            </el-button>
+
+            <el-button
+              :disabled="!selectedRows.length || selectTranslating"
+              :loading="selectTranslating"
+              @click="translateSelected"
+              type="primary"
+              v-tooltip="selectedRows.length ? `翻译选中的 ${selectedRows.length} 项` : '请先在表格中选择要翻译的项'"
+            >
+              <el-icon v-if="!selectTranslating"><Select /></el-icon>
+              翻译选中项 {{ selectedRows.length ? `(${selectedRows.length})` : '' }}
+            </el-button>
+            
+            <el-button 
+              @click="exportPo" 
+              type="success"
+              :disabled="!translatedCount"
+              v-tooltip="translatedCount ? `导出当前页面的 ${translatedCount} 条翻译结果` : '当前页面没有可导出的翻译内容'"
+            >
+              导出翻译<el-icon class="el-icon--right"><Download /></el-icon>
+            </el-button>
+          </div>
+
+          <!-- 翻译统计信息 -->
+          <div v-if="tableData.length" class="statistics">
+            <el-statistic 
+              title="总数" 
+              :value="tableData.length"
+              v-tooltip="'当前页面的总条目数'"
+            />
+            <el-statistic 
+              title="已翻译" 
+              :value="translatedCount" 
+              :value-style="{ color: '#67C23A' }"
+              v-tooltip="'已成功翻译的条目数'"
+            />
+            <el-statistic 
+              title="未翻译" 
+              :value="untranslatedCount" 
+              :value-style="{ color: '#E6A23C' }"
+              v-tooltip="'还未开始翻译的条目数'"
+            />
+            <el-statistic 
+              title="失败" 
+              :value="failedCount" 
+              :value-style="{ color: '#F56C6C' }"
+              v-tooltip="'翻译失败的条目数,可以点击重试'"
+            />
+            <el-statistic 
+              title="翻译中" 
+              :value="translatingCount" 
+              :value-style="{ color: '#409EFF' }"
+              v-tooltip="'正在进行翻译的条目数'"
+            />
+          </div>
+
+          <!-- 翻译进度提示 -->
+          <div v-if="translationProgress.total > 0" class="progress-bar">
+            <el-progress 
+              :percentage="translationProgress.percentage" 
+              :status="translationProgress.status"
+              v-tooltip="`翻译进度: ${translationProgress.translated}/${translationProgress.total}`"
+            >
+              <span class="text-sm">
+                {{ translationProgress.translated }} / {{ translationProgress.total }}
+                <span v-if="translationProgress.failed > 0" class="text-red-500">
+                  (失败: {{ translationProgress.failed }})
+                </span>
+              </span>
+            </el-progress>
+          </div>
+
+          <el-tabs
+            v-if="allTranslations.length"
+            @tab-click="changeTab"
+            v-model="tabsValue"
+            type="card"
+            closable
+            @tab-remove="removeTab"
+            class="file-tabs"
+          >
+            <el-tab-pane
+              v-for="item in allTranslations"
+              :key="item.fileName"
+              :label="item.fileName"
+              :name="item.fileName"
+            >
+            </el-tab-pane>
+          </el-tabs>
+
+          <!-- 虚拟滚动表格 -->
+          <div class="virtual-table-container">
+            <!-- 表头 -->
+            <div class="table-header">
+              <div class="header-cell" style="width: 50px; flex-shrink: 0;">
+                <el-checkbox 
+                  v-model="selectAll" 
+                  @change="handleSelectAll"
+                  v-tooltip="'全选/取消全选'"
+                />
+              </div>
+              <div class="header-cell" style="width: 300px; flex-shrink: 0;">原文</div>
+              <div class="header-cell" style="flex: 1;">翻译后的内容</div>
+              <div class="header-cell" style="width: 100px; flex-shrink: 0;">状态</div>
+              <div class="header-cell" style="width: 120px; flex-shrink: 0;">操作</div>
+            </div>
+
+            <!-- 虚拟滚动内容 -->
+            <div 
+              class="table-body" 
+              ref="scrollContainer"
+              @scroll="handleScroll"
+            >
+              <div 
+                class="table-content" 
+                :style="{ height: `${totalHeight}px`, position: 'relative' }"
+              >
+                <div
+                  v-for="item in visibleItems"
+                  :key="item.context"
+                  class="table-row"
+                  :class="{ 'row-selected': isRowSelected(item.row) }"
+                  :style="{ 
+                    transform: `translateY(${item.top}px)`,
+                    position: 'absolute',
+                    width: '100%',
+                    height: `${rowHeight}px`
+                  }"
+                  @click="handleRowClick(item.row, $event)"
+                >
+                  <!-- 选择框 -->
+                  <div class="table-cell" style="width: 50px; flex-shrink: 0;">
+                    <el-checkbox 
+                      :model-value="isRowSelected(item.row)"
+                      @click.stop
+                      @change="handleRowSelect(item.row, $event)"
+                    />
+                  </div>
+
+                  <!-- 原文 -->
+                  <div class="table-cell" style="width: 300px; flex-shrink: 0;">
+                    <pre 
+                      class="cell-content"
+                      v-tooltip="'原文内容'"
+                    >{{ item.row.msgid }}</pre>
+                  </div>
+
+                  <!-- 翻译内容 -->
+                  <div class="table-cell" style="flex: 1;">
+                    <el-input
+                      type="textarea"
+                      :autosize="{ minRows: 1, maxRows: 3 }"
+                      @input="(value) => statusChange(value, item.row)"
+                      @click.stop
+                      :model-value="getTranslation(item.row)"
+                      placeholder="请输入翻译后的内容"
+                      v-tooltip="'翻译后的内容,可以手动编辑修改'"
+                    ></el-input>
+                  </div>
+
+                  <!-- 状态 -->
+                  <div class="table-cell" style="width: 100px; flex-shrink: 0;">
+                    <el-tag 
+                      :type="getState(item.row.context).type" 
+                      size="small"
+                      v-tooltip="getStateTooltip(item.row.context)"
+                    >
+                      {{ getState(item.row.context).text }}
+                    </el-tag>
+                  </div>
+
+                  <!-- 操作 -->
+                  <div class="table-cell" style="width: 120px; flex-shrink: 0;">
+                    <el-button
+                      :loading="translating[item.row.context]"
+                      @click.stop="translation(item.row)"
+                      type="primary"
+                      size="small"
+                      v-tooltip="translating[item.row.context] ? '翻译进行中,请稍候...' : '点击翻译此条目'"
+                    >
+                      {{ translating[item.row.context] ? '翻译中...' : '翻译' }}
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </template>
     </el-card>
     
@@ -345,6 +398,14 @@
             <span class="text-sm text-gray-500">毫秒</span>
           </div>
         </el-form-item>
+        <el-form-item label="并发限制">
+          <el-input-number
+            v-model="settings.concurrentLimit"
+            :min="1"
+            :max="10"
+            v-tooltip="'同时进行的翻译请求数量,降低此值可以减少卡顿'"
+          />
+        </el-form-item>
       </el-form>
       <template #footer>
         <div class="flex justify-center">
@@ -362,7 +423,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
 import { 
   Upload, 
   UploadFilled, 
@@ -388,32 +449,15 @@ const vTooltip = {
 
 const fileList = ref([]);
 const changeMsgstr = ref({});
-const select = ref([]);
-const columns = ref([
-  {
-    prop: "msgid",
-    label: "原文",
-    slot: "msgid",
-    width: 300,
-  },
-  {
-    prop: "msgstr",
-    label: "翻译后的内容",
-    slot: "msgstr",
-  },
-  {
-    prop: "status",
-    label: "状态",
-    slot: "status",
-    width: 100,
-  },
-  {
-    prop: "action",
-    label: "操作",
-    slot: "action",
-    width: 120,
-  },
-]);
+const selectedRows = ref([]);
+const selectAll = ref(false);
+
+// 虚拟滚动相关
+const scrollContainer = ref(null);
+const rowHeight = 80; // 每行高度
+const bufferSize = 5; // 缓冲区大小
+const scrollTop = ref(0);
+const containerHeight = ref(600);
 
 // 常用语言列表
 const commonLanguages = ref([
@@ -447,6 +491,7 @@ const settings = ref({
   apiKey: "",
   maxRetries: 3,
   retryDelay: 2000,
+  concurrentLimit: 3,
 });
 
 const targetLanguage = ref("Simplified Chinese");
@@ -462,6 +507,10 @@ let isSync = ref(false);
 const autoTranslating = ref(false);
 let cache = {};
 
+// 并发控制队列
+let translationQueue = [];
+let activeTranslations = 0;
+
 // 翻译进度
 const translationProgress = ref({
   total: 0,
@@ -470,6 +519,47 @@ const translationProgress = ref({
   percentage: 0,
   status: ''
 });
+
+// 虚拟滚动计算
+const totalHeight = computed(() => tableData.value.length * rowHeight);
+
+const startIndex = computed(() => {
+  return Math.max(0, Math.floor(scrollTop.value / rowHeight) - bufferSize);
+});
+
+const endIndex = computed(() => {
+  const visibleCount = Math.ceil(containerHeight.value / rowHeight);
+  return Math.min(
+    tableData.value.length,
+    startIndex.value + visibleCount + bufferSize * 2
+  );
+});
+
+const visibleItems = computed(() => {
+  const items = [];
+  for (let i = startIndex.value; i < endIndex.value; i++) {
+    items.push({
+      row: tableData.value[i],
+      context: tableData.value[i].context,
+      top: i * rowHeight
+    });
+  }
+  return items;
+});
+
+// 处理滚动
+const handleScroll = () => {
+  if (scrollContainer.value) {
+    scrollTop.value = scrollContainer.value.scrollTop;
+  }
+};
+
+// 更新容器高度
+const updateContainerHeight = () => {
+  if (scrollContainer.value) {
+    containerHeight.value = scrollContainer.value.clientHeight;
+  }
+};
 
 // 计算各种状态的数量
 const translatedCount = computed(() => {
@@ -509,6 +599,60 @@ const aiModel = ref({
   ],
 });
 
+// 点击整行选中
+const handleRowClick = (row, event) => {
+  // 如果点击的是输入框、按钮等交互元素，不触发行选择
+  const target = event.target;
+  const isInteractiveElement = 
+    target.tagName === 'TEXTAREA' || 
+    target.tagName === 'INPUT' || 
+    target.tagName === 'BUTTON' ||
+    target.closest('.el-button') ||
+    target.closest('.el-input') ||
+    target.closest('.el-checkbox');
+  
+  if (isInteractiveElement) {
+    return;
+  }
+
+  // 切换选中状态
+  const isSelected = isRowSelected(row);
+  handleRowSelect(row, !isSelected);
+};
+
+// 虚拟表格相关方法
+const isRowSelected = (row) => {
+  return selectedRows.value.some(r => r.context === row.context);
+};
+
+const handleRowSelect = (row, checked) => {
+  if (checked) {
+    if (!isRowSelected(row)) {
+      selectedRows.value.push(row);
+    }
+  } else {
+    selectedRows.value = selectedRows.value.filter(r => r.context !== row.context);
+  }
+  updateSelectAll();
+};
+
+const handleSelectAll = (checked) => {
+  if (checked) {
+    selectedRows.value = [...tableData.value];
+  } else {
+    selectedRows.value = [];
+  }
+};
+
+const updateSelectAll = () => {
+  selectAll.value = tableData.value.length > 0 && 
+                    selectedRows.value.length === tableData.value.length;
+};
+
+const getTranslation = (row) => {
+  return changeMsgstr.value[tabsValue.value]?.[row.context] || row.msgstr;
+};
+
 const getState = (msgid) => {
   if (translating.value[msgid]) {
     return {
@@ -536,7 +680,6 @@ const getState = (msgid) => {
   }
 };
 
-// 获取状态提示信息
 const getStateTooltip = (msgid) => {
   if (translating.value[msgid]) {
     return "正在进行翻译,请稍候...";
@@ -584,9 +727,18 @@ onMounted(() => {
   if (savedSize) {
     size.value = parseInt(savedSize);
   }
+
+  // 监听窗口大小变化
+  window.addEventListener('resize', updateContainerHeight);
+  nextTick(() => {
+    updateContainerHeight();
+  });
 });
 
-// 保存配置到本地存储
+onUnmounted(() => {
+  window.removeEventListener('resize', updateContainerHeight);
+});
+
 watch(targetLanguage, (newVal) => {
   localStorage.setItem("targetLanguage", newVal);
 });
@@ -610,6 +762,8 @@ const reset = () => {
     failTranslating.value = {};
     selectTranslating.value = false;
     autoTranslating.value = false;
+    selectedRows.value = [];
+    selectAll.value = false;
     translationProgress.value = {
       total: 0,
       translated: 0,
@@ -634,22 +788,42 @@ const saveSetting = () => {
 };
 
 const handleSuccess = (response, file, fileList) => {
-  allTranslations.value = allTranslations.value.concat(
-    response.allTranslations
-  );
-  if (tabsValue.value === "") {
-    tabsValue.value = response.allTranslations[0].fileName;
-    tableData.value = response.allTranslations[0].translations;
+  const processData = () => {
+    allTranslations.value = allTranslations.value.concat(
+      response.allTranslations
+    );
+    if (tabsValue.value === "") {
+      tabsValue.value = response.allTranslations[0].fileName;
+      tableData.value = response.allTranslations[0].translations;
+    }
+    ElMessage.success(`成功导入 ${response.allTranslations.length} 个文件`);
+    
+    nextTick(() => {
+      updateContainerHeight();
+    });
+  };
+
+  if (window.requestIdleCallback) {
+    window.requestIdleCallback(processData);
+  } else {
+    setTimeout(processData, 0);
   }
-  ElMessage.success(`成功导入 ${response.allTranslations.length} 个文件`);
 };
 
 const changeTab = (item) => {
-  tabsValue.value = item.paneName;
-  const index = allTranslations.value.findIndex(t => t.fileName === item.paneName);
-  if (index !== -1) {
-    tableData.value = allTranslations.value[index].translations;
-  }
+  nextTick(() => {
+    tabsValue.value = item.paneName;
+    const index = allTranslations.value.findIndex(t => t.fileName === item.paneName);
+    if (index !== -1) {
+      tableData.value = allTranslations.value[index].translations;
+      selectedRows.value = [];
+      selectAll.value = false;
+      scrollTop.value = 0;
+      if (scrollContainer.value) {
+        scrollContainer.value.scrollTop = 0;
+      }
+    }
+  });
 };
 
 const removeTab = (item) => {
@@ -658,7 +832,6 @@ const removeTab = (item) => {
   );
   fileList.value = fileList.value.filter((file) => file.name !== item);
 
-  // 清理该tab的翻译数据
   if (changeMsgstr.value[item]) {
     delete changeMsgstr.value[item];
   }
@@ -670,6 +843,8 @@ const removeTab = (item) => {
     tabsValue.value = "";
     tableData.value = [];
   }
+  selectedRows.value = [];
+  selectAll.value = false;
 };
 
 const statusChange = (value, row) => {
@@ -683,10 +858,20 @@ const statusChange = (value, row) => {
   }
 };
 
-// 延迟函数
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// 带重试的翻译函数
+const processTranslationQueue = async () => {
+  while (translationQueue.length > 0 && activeTranslations < settings.value.concurrentLimit) {
+    const task = translationQueue.shift();
+    activeTranslations++;
+    
+    task().finally(() => {
+      activeTranslations--;
+      processTranslationQueue();
+    });
+  }
+};
+
 const translation = async (row, retryCount = 0) => {
   if (settings.value.apiKey === "") {
     ElNotification({
@@ -713,6 +898,7 @@ const translation = async (row, retryCount = 0) => {
   });
 
   let keys = Object.keys(cacheKeys);
+  
   keys.forEach((item) => {
     if (cache[item]) {
       cacheKeys[item].forEach((context) => {
@@ -732,7 +918,6 @@ const translation = async (row, retryCount = 0) => {
     
     const input = item;
     const regex = /{([^}]+)}/g;
-    const matches = input.match(regex);
 
     const placeholders = [];
     const output = input.replace(regex, (match, p1) => {
@@ -797,7 +982,6 @@ const translation = async (row, retryCount = 0) => {
 
     selectTranslating.value = false;
     
-    // 更新进度
     if (translationProgress.value.total > 0) {
       translationProgress.value.translated += rows.length;
       translationProgress.value.percentage = Math.round(
@@ -811,14 +995,12 @@ const translation = async (row, retryCount = 0) => {
   } catch (error) {
     console.error('翻译错误:', error);
     
-    // 重试逻辑
     if (retryCount < settings.value.maxRetries) {
       console.log(`重试第 ${retryCount + 1} 次...`);
       await sleep(settings.value.retryDelay);
       return translation(row, retryCount + 1);
     }
     
-    // 达到最大重试次数后标记为失败
     rows.forEach((item) => {
       translating.value[item.context] = false;
       failTranslating.value[item.context] = true;
@@ -827,7 +1009,6 @@ const translation = async (row, retryCount = 0) => {
       }
     });
     
-    // 更新失败计数
     if (translationProgress.value.total > 0) {
       translationProgress.value.failed += rows.length;
       translationProgress.value.translated += rows.length;
@@ -850,19 +1031,31 @@ const translation = async (row, retryCount = 0) => {
   }
 };
 
-// 翻译选中项
 const translateSelected = async () => {
-  if (select.value.length === 0) {
+  if (selectedRows.value.length === 0) {
     ElMessage.warning('请先选择要翻译的项');
     return;
   }
 
   selectTranslating.value = true;
-  await translation(select.value);
+  
+  const batchSize = Math.ceil(selectedRows.value.length / settings.value.concurrentLimit);
+  for (let i = 0; i < selectedRows.value.length; i += batchSize) {
+    const batch = selectedRows.value.slice(i, i + batchSize);
+    if (isSync.value) {
+      await translation(batch);
+    } else {
+      translationQueue.push(() => translation(batch));
+    }
+  }
+  
+  if (!isSync.value) {
+    processTranslationQueue();
+  }
+  
   selectTranslating.value = false;
 };
 
-// 重试失败的翻译
 const retryFailedTranslations = async () => {
   const failedContexts = Object.keys(failTranslating.value);
   if (failedContexts.length === 0) {
@@ -872,12 +1065,10 @@ const retryFailedTranslations = async () => {
 
   retryingFailed.value = true;
   
-  // 找到所有失败的行
   const failedRows = tableData.value.filter(row => 
     failedContexts.includes(row.context)
   );
 
-  // 清除失败标记
   failTranslating.value = {};
 
   ElNotification({
@@ -886,7 +1077,6 @@ const retryFailedTranslations = async () => {
     type: 'info'
   });
 
-  // 初始化进度
   translationProgress.value = {
     total: failedRows.length,
     translated: 0,
@@ -908,7 +1098,7 @@ const retryFailedTranslations = async () => {
       if (isSync.value) {
         await translation(rows);
       } else {
-        translation(rows);
+        translationQueue.push(() => translation(rows));
       }
       rows = [row];
       currentSize = row.msgid.length;
@@ -919,12 +1109,12 @@ const retryFailedTranslations = async () => {
     if (isSync.value) {
       await translation(rows);
     } else {
-      translation(rows);
+      translationQueue.push(() => translation(rows));
     }
   }
 
-  // 等待异步翻译完成
   if (!isSync.value) {
+    processTranslationQueue();
     await sleep(2000);
   }
 
@@ -938,8 +1128,6 @@ const retryFailedTranslations = async () => {
   });
 };
 
-// 自动翻译
-// forceRetranslate: 是否强制重新翻译所有项(包括已翻译的)
 const autoTranslation = async (forceRetranslate = false) => {
   if (autoTranslating.value) return;
   
@@ -947,7 +1135,6 @@ const autoTranslation = async (forceRetranslate = false) => {
   let currentSize = 0;
   let rows = [];
   
-  // 如果是强制重新翻译,清除已有的翻译和失败记录
   if (forceRetranslate) {
     const result = await ElMessageBox.confirm(
       '这将清除当前页面的所有翻译结果并重新翻译,确定要继续吗?',
@@ -967,25 +1154,19 @@ const autoTranslation = async (forceRetranslate = false) => {
       return;
     }
     
-    // 清除当前tab的翻译数据
     if (changeMsgstr.value[tabsValue.value]) {
       changeMsgstr.value[tabsValue.value] = {};
     }
     failTranslating.value = {};
-    
-    // 清除缓存(可选)
     cache = {};
   } else {
-    // 只清除失败记录
     failTranslating.value = {};
   }
 
-  // 统计需要翻译的项
   const needTranslation = tableData.value.filter(row => {
     if (forceRetranslate) {
-      return true; // 强制重新翻译所有项
+      return true;
     }
-    // 只翻译未翻译的项
     return !(changeMsgstr.value[tabsValue.value] && changeMsgstr.value[tabsValue.value][row.context]);
   });
 
@@ -995,7 +1176,6 @@ const autoTranslation = async (forceRetranslate = false) => {
     return;
   }
 
-  // 初始化进度
   translationProgress.value = {
     total: needTranslation.length,
     translated: 0,
@@ -1013,7 +1193,6 @@ const autoTranslation = async (forceRetranslate = false) => {
   for (let index = 0; index < tableData.value.length; index++) {
     const row = tableData.value[index];
     
-    // 根据模式决定是否跳过
     if (!forceRetranslate && 
         changeMsgstr.value[tabsValue.value] && 
         changeMsgstr.value[tabsValue.value][row.context]) {
@@ -1027,7 +1206,7 @@ const autoTranslation = async (forceRetranslate = false) => {
       if (isSync.value) {
         await translation(rows);
       } else {
-        translation(rows);
+        translationQueue.push(() => translation(rows));
       }
       rows = [row];
       currentSize = row.msgid.length;
@@ -1038,12 +1217,12 @@ const autoTranslation = async (forceRetranslate = false) => {
     if (isSync.value) {
       await translation(rows);
     } else {
-      translation(rows);
+      translationQueue.push(() => translation(rows));
     }
   }
 
-  // 等待异步翻译完成
   if (!isSync.value) {
+    processTranslationQueue();
     await sleep(2000);
   }
 
@@ -1056,10 +1235,6 @@ const autoTranslation = async (forceRetranslate = false) => {
     type: translationProgress.value.failed === 0 ? 'success' : 'warning',
     duration: 5000
   });
-};
-
-const OnSelect = (selection) => {
-  select.value = selection;
 };
 
 const exportPo = async () => {
@@ -1108,22 +1283,168 @@ const exportPo = async () => {
 </script>
 
 <style scoped>
-.el-progress {
-  padding: 0 20px;
+/* Card 整体布局 - 固定高度，禁止滚动 */
+.translation-card {
+  width: 100%;
+  height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-pre {
-  font-family: inherit;
-  margin: 0;
+.translation-card :deep(.el-card__body) {
+  height: 100%;
+  padding: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
-/* 为所有可点击元素添加指针样式 */
-button,
-.el-select,
-.el-input-number,
-.el-switch,
-.el-tag,
-.el-statistic {
+/* Card内容区域 */
+.card-content {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 20px;
+}
+
+/* 工具栏 */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+/* 统计信息 */
+.statistics {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+/* 进度条 */
+.progress-bar {
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.progress-bar .el-progress {
+  padding: 0;
+}
+
+/* 文件标签页 */
+.file-tabs {
+  margin-bottom: 16px;
+  flex-shrink: 0;
+}
+
+.file-tabs :deep(.el-tabs__content) {
+  display: none;
+}
+
+/* 虚拟表格容器 - 占据剩余空间并可滚动 */
+.virtual-table-container {
+  flex: 1;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.table-header {
+  display: flex;
+  background: #f5f7fa;
+  border-bottom: 1px solid #ebeef5;
+  font-weight: bold;
+  padding: 12px 0;
+  flex-shrink: 0;
+}
+
+.header-cell {
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: #909399;
+}
+
+.table-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.table-content {
+  width: 100%;
+}
+
+.table-row {
+  display: flex;
+  border-bottom: 1px solid #ebeef5;
+  padding: 10px 0;
+  transition: background-color 0.2s;
+  min-height: 80px;
+  align-items: center;
+  box-sizing: border-box;
   cursor: pointer;
+}
+
+.table-row:hover {
+  background-color: #f5f7fa;
+}
+
+.row-selected {
+  background-color: #ecf5ff;
+}
+
+.row-selected:hover {
+  background-color: #d9ecff;
+}
+
+.table-cell {
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+}
+
+.cell-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.5;
+  max-height: 60px;
+  overflow-y: auto;
+}
+
+/* 滚动条样式 */
+.table-body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.table-body::-webkit-scrollbar-thumb {
+  background: #dcdfe6;
+  border-radius: 4px;
+}
+
+.table-body::-webkit-scrollbar-thumb:hover {
+  background: #c0c4cc;
+}
+
+.cell-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.cell-content::-webkit-scrollbar-thumb {
+  background: #dcdfe6;
+  border-radius: 2px;
 }
 </style>
